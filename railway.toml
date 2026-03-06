@@ -1,0 +1,27 @@
+# railway.toml — SIGAF v2.0
+# Deploy with: railway up
+[build]
+  builder = "DOCKERFILE"
+
+[[services]]
+  name = "backend"
+  source = "backend"
+  [services.build]
+    dockerfilePath = "backend/Dockerfile"
+  [services.deploy]
+    startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthcheckPath = "/health"
+    healthcheckTimeout = 300
+  [services.variables]
+    PORT = "8000"
+
+[[services]]
+  name = "frontend"
+  source = "frontend"
+  [services.build]
+    dockerfilePath = "frontend/Dockerfile"
+  [services.deploy]
+    startCommand = "node server.js"
+    healthcheckPath = "/"
+  [services.variables]
+    PORT = "3000"
