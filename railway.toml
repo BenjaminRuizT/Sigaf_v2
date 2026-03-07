@@ -1,27 +1,26 @@
 # railway.toml — SIGAF v2.0
-# Deploy with: railway up
+# This file tells Railway how to build and deploy each service.
+
 [build]
   builder = "DOCKERFILE"
 
 [[services]]
   name = "backend"
-  source = "backend"
   [services.build]
-    dockerfilePath = "backend/Dockerfile"
+    builder = "DOCKERFILE"
+    dockerfilePath = "Dockerfile"
+    buildContext = "backend"
   [services.deploy]
     startCommand = "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-    healthcheckPath = "/health"
+    healthcheckPath = "/api/health"
     healthcheckTimeout = 300
-  [services.variables]
-    PORT = "8000"
 
 [[services]]
   name = "frontend"
-  source = "frontend"
   [services.build]
-    dockerfilePath = "frontend/Dockerfile"
+    builder = "DOCKERFILE"
+    dockerfilePath = "Dockerfile"
+    buildContext = "frontend"
   [services.deploy]
     startCommand = "node server.js"
     healthcheckPath = "/"
-  [services.variables]
-    PORT = "3000"
