@@ -1,4 +1,8 @@
 "use client";
+// Force dynamic rendering — prevents Next.js static prerender
+// which fails when useSearchParams is present
+export const dynamic = "force-dynamic";
+
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,7 +66,8 @@ function LoginInner() {
               <label className="block text-sm font-medium mb-1.5">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input type={showPass ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
+                <input type={showPass ? "text" : "password"} value={password}
+                  onChange={e => setPassword(e.target.value)}
                   className="w-full pl-10 pr-10 py-2.5 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   required autoComplete="current-password" />
                 <button type="button" onClick={() => setShowPass(p => !p)}
