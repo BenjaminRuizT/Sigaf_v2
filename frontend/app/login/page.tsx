@@ -1,30 +1,21 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Lock, Mail, Eye, EyeOff, Loader2 } from "lucide-react";
-import { getStoredToken } from "@/lib/api";
 import Providers from "@/components/Providers";
 
 function LoginForm() {
   const { login } = useAuth();
-  const router     = useRouter();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading]   = useState(false);
 
-  // Read ?from= without useSearchParams — avoids Next.js Suspense requirement
   const getRedirect = () => {
     if (typeof window === "undefined") return "/dashboard";
     return new URLSearchParams(window.location.search).get("from") || "/dashboard";
   };
-
-  useEffect(() => {
-    if (getStoredToken()) window.location.href = getRedirect();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
