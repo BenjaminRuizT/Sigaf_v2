@@ -22,7 +22,7 @@ function LoginForm() {
   };
 
   useEffect(() => {
-    if (getStoredToken()) router.replace(getRedirect());
+    if (getStoredToken()) window.location.href = getRedirect();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -32,7 +32,7 @@ function LoginForm() {
     try {
       await login(email, password);
       toast.success("¡Bienvenido!");
-      router.replace(getRedirect());
+      window.location.href = getRedirect();
     } catch {
       toast.error("Credenciales inválidas");
     } finally {
