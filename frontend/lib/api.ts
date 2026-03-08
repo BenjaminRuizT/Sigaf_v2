@@ -1,7 +1,7 @@
 /**
  * SIGAF centralized API client.
  * Uses axios with automatic JWT refresh via interceptors.
- * Tokens are stored in localStorage (access) and httpOnly cookies (refresh).
+ * Tokens are stored in localStorage (access) and a cookie for middleware auth gate.
  */
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from "axios";
 
@@ -26,10 +26,14 @@ function getRefreshToken() {
 function setTokens(access: string, refresh?: string) {
   localStorage.setItem("sigaf_token", access);
   if (refresh) localStorage.setItem("sigaf_refresh_token", refresh);
+  // Set cookie so Next.js middleware can gate protected routes
+  document.cookie = `sigaf_auth=${access}; path=/; SameSite=Lax`;
 }
 function clearTokens() {
   localStorage.removeItem("sigaf_token");
   localStorage.removeItem("sigaf_refresh_token");
+  // Clear middleware cookie
+  document.cookie = "sigaf_auth=; path=/; max-age=0";
 }
 
 const api: AxiosInstance = axios.create({
