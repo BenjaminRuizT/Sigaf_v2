@@ -1,147 +1,296 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { TrendingDown, Package, Store, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  User, Lock, Sun, Moon, Languages, Palette, ChevronRight,
+  Eye, EyeOff, Shield, FileText, BarChart2, Box, ArrowRightLeft,
+  RefreshCw, Laptop, Smartphone, Info, Check,
+} from "lucide-react";
 
-const COLORS = ["#2B5BA8","#34A85A","#F59E0B","#EF4444","#8B5CF6","#06B6D4","#EC4899","#F97316"];
+// ── Color palette tokens ──────────────────────────────────────────────────────
+type Palette = "professional" | "oxxo";
 
-const Sk = ({ h = "220px" }: { h?: string }) => (
-  <div className="bg-muted animate-pulse rounded-xl" style={{ height: h }} />
-);
+const PALETTES: { id: Palette; label: string; bg: string; dot1: string; dot2: string }[] = [
+  { id: "professional", label: "Profesional", bg: "bg-slate-800", dot1: "bg-blue-500", dot2: "bg-slate-300" },
+  { id: "oxxo", label: "OXXO", bg: "bg-red-700", dot1: "bg-yellow-400", dot2: "bg-white" },
+];
 
-export default function ReportsPage() {
-  const { api } = useAuth();
-  const [data, setData]     = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
+// ── App features info ─────────────────────────────────────────────────────────
+const FEATURES = [
+  { icon: BarChart2, label: "Dashboard con métricas en tiempo real" },
+  { icon: Box, label: "Escaneo de códigos de barras con modo offline" },
+  { icon: ArrowRightLeft, label: "Gestión de transferencias y altas/bajas" },
+  { icon: FileText, label: "Exportación a Excel (clasificaciones, movimientos)" },
+  { icon: Shield, label: "Control de acceso por perfil de usuario" },
+  { icon: RefreshCw, label: "Sincronización automática de escaneos offline" },
+];
 
-  useEffect(() => {
-    api.get("/reports/summary")
-      .then(r => setData(r.data))
-      .catch(() => toast.error("Error cargando reportes"))
-      .finally(() => setLoading(false));
-  }, [api]);
+const MOVEMENT_TYPES = [
+  { key: "ALTA", color: "bg-emerald-500/20 text-emerald-700 border-emerald-400/40", desc: "Incorporación de equipo no registrado" },
+  { key: "BAJA", color: "bg-red-500/20 text-red-700 border-red-400/40", desc: "Retiro de equipo del MAF" },
+  { key: "TRANSFER", color: "bg-blue-500/20 text-blue-700 border-blue-400/40", desc: "Cambio de tienda del equipo" },
+];
 
-  const plazaData  = (data?.plaza_equipment  as Record<string, unknown>[]) ?? [];
-  const yearData   = (data?.equipment_by_year as Record<string, unknown>[]) ?? [];
-  const topMissing = (data?.top_missing_stores as Record<string, unknown>[]) ?? [];
+const PROFILES = [
+  { name: "Técnico", desc: "Puede realizar auditorías, ver reportes básicos" },
+  { name: "Administrador", desc: "Acceso completo a reportes y configuración" },
+  { name: "Super Administrador", desc: "Acceso total incluido gestión de usuarios y reset" },
+];
 
-  const totalEquipment = plazaData.reduce((s, r) => s + ((r.count as number) ?? 0), 0);
-  const totalValue     = plazaData.reduce((s, r) => s + ((r.total_real as number) ?? 0), 0);
-  const totalDepr      = plazaData.reduce((s, r) => s + ((r.deprecated as number) ?? 0), 0);
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function SettingsPage() {
+  const { user, api } = useAuth();
+  const { theme, toggle: toggleTheme } = useTheme();
+  const { lang, setLang } = useLanguage();
+
+  const [nombre, setNombre]         = useState(user?.nombre || "");
+  const [password, setPassword]     = useState("");
+  const [showPwd, setShowPwd]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [palette, setPalette]       = useState<Palette>(() =>
+    (typeof window !== "undefined" ? (localStorage.getItem("sigaf_palette") as Palette) : null) || "professional"
+  );
+
+  // ── Profile update ────────────────────────────────────────────────────────
+  const handleSaveProfile = async () => {
+    if (!nombre.trim()) { toast.error("El nombre no puede estar vacío"); return; }
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = { nombre: nombre.trim() };
+      if (password.trim()) payload.password = password.trim();
+      await api.put("/auth/profile", payload);
+      toast.success("Perfil actualizado correctamente");
+      setPassword("");
+      setTimeout(() => window.location.reload(), 800);
+    } catch (err: unknown) {
+      const d = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      toast.error(d || "Error al actualizar perfil");
+    } finally { setSaving(false); }
+  };
+
+  const handlePaletteChange = (p: Palette) => {
+    setPalette(p);
+    localStorage.setItem("sigaf_palette", p);
+    toast.success(`Paleta "${p === "professional" ? "Profesional" : "OXXO"}" aplicada`);
+  };
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">Reportes</h1>
+    <div className="space-y-6 max-w-3xl mx-auto">
+      <div>
+        <h1 className="font-heading text-3xl font-bold uppercase tracking-tight">Configuración</h1>
+        <p className="text-muted-foreground text-sm mt-1">Gestiona tus preferencias y perfil de usuario</p>
+      </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Equipos",   value: loading ? "…" : totalEquipment.toLocaleString(), icon: Package,       color: "bg-blue-500/10 text-blue-600" },
-          { label: "Valor Real",      value: loading ? "…" : formatCurrency(totalValue),       icon: TrendingDown,  color: "bg-emerald-500/10 text-emerald-600" },
-          { label: "Depreciados",     value: loading ? "…" : totalDepr.toLocaleString(),        icon: AlertTriangle, color: "bg-amber-500/10 text-amber-600" },
-          { label: "Plazas",          value: loading ? "…" : plazaData.length,                  icon: Store,         color: "bg-purple-500/10 text-purple-600" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-card border border-border rounded-xl p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-                <p className="text-2xl font-bold mt-1">{value}</p>
-              </div>
-              <div className={`p-2 rounded-lg ${color}`}><Icon className="h-5 w-5" /></div>
+      {/* ── Profile ──────────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 font-heading uppercase text-base tracking-wide">
+            <User className="h-4 w-4 text-primary" /> Perfil de Usuario
+          </CardTitle>
+          <CardDescription>Actualiza tu nombre y contraseña de acceso</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-3 bg-muted rounded-lg p-3">
+            <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary text-lg select-none">
+              {(nombre || user?.nombre || "U")[0].toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold">{user?.nombre}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+            <Badge variant="outline" className="text-xs">{user?.perfil}</Badge>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="nombre">Nombre</Label>
+            <Input id="nombre" value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Tu nombre..." />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password" className="flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> Nueva Contraseña</Label>
+            <div className="relative">
+              <Input id="password" type={showPwd ? "text" : "password"} value={password}
+                onChange={e => setPassword(e.target.value)} placeholder="Dejar vacío para no cambiar" className="pr-10" />
+              <button type="button" tabIndex={-1} onClick={() => setShowPwd(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+          <Button onClick={handleSaveProfile} disabled={saving} className="w-full gap-2">
+            {saving ? <><RefreshCw className="h-4 w-4 animate-spin" />Guardando...</> : <><Check className="h-4 w-4" />Guardar Cambios</>}
+          </Button>
+        </CardContent>
+      </Card>
 
-      {/* Charts */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-medium text-sm mb-4">Equipos por Plaza</h3>
-          {loading ? <Sk /> : plazaData.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Sin datos</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={plazaData.slice(0,12)} margin={{ left: -10, bottom: 20 }}>
-                <XAxis dataKey="plaza" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: unknown) => [Number(v).toLocaleString(), "Equipos"]} />
-                <Bar dataKey="count" radius={[4,4,0,0]}>
-                  {plazaData.slice(0,12).map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-medium text-sm mb-4">Equipos por Año de Adquisición</h3>
-          {loading ? <Sk /> : yearData.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Sin datos</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={yearData} margin={{ left: -10 }}>
-                <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: unknown, n: unknown) =>
-                  [n === "cost" ? formatCurrency(v as number) : Number(v).toLocaleString(), n === "cost" ? "Costo" : "Equipos"]
-                } />
-                <Bar dataKey="count" fill="#2B5BA8" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* Top missing */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border font-medium text-sm flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-red-500" />
-          Top Tiendas con Mayor Faltante
-        </div>
-        {loading ? (
-          <div className="p-4 space-y-2">{Array.from({length:5}).map((_,i)=>(
-            <div key={i} className="h-10 rounded bg-muted animate-pulse" />
-          ))}</div>
-        ) : topMissing.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground text-sm">
-            No hay auditorías completadas aún
+      {/* ── Appearance ───────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 font-heading uppercase text-base tracking-wide">
+            <Palette className="h-4 w-4 text-primary" /> Apariencia
+          </CardTitle>
+          <CardDescription>Personaliza el aspecto visual de la aplicación</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Theme toggle */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Modo de color</p>
+              <p className="text-xs text-muted-foreground">Cambia entre tema claro y oscuro</p>
+            </div>
+            <button onClick={toggleTheme}
+              className={`relative inline-flex h-9 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+                ${theme === "dark" ? "bg-primary" : "bg-muted-foreground/30"}`}>
+              <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full bg-white shadow transition-transform
+                ${theme === "dark" ? "translate-x-8" : "translate-x-1"}`}>
+                {theme === "dark" ? <Moon className="h-3.5 w-3.5 text-slate-700" /> : <Sun className="h-3.5 w-3.5 text-yellow-500" />}
+              </span>
+            </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 border-b border-border">
-                <tr>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">#</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tienda</th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden md:table-cell">Plaza</th>
-                  <th className="text-right px-4 py-3 text-muted-foreground font-medium">No Localizados</th>
-                  <th className="text-right px-4 py-3 text-muted-foreground font-medium hidden lg:table-cell">Valor Faltante</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {topMissing.slice(0, 15).map((s, i) => (
-                  <tr key={String(s.id)} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{i + 1}</td>
-                    <td className="px-4 py-3 font-medium">{String(s.tienda)}</td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell text-xs">{String(s.plaza)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-bold text-red-600">{String(s.not_found_count)}</span>
-                    </td>
-                    <td className="px-4 py-3 text-right hidden lg:table-cell text-muted-foreground">
-                      {formatCurrency(s.not_found_value as number)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <Separator />
+
+          {/* Language selector */}
+          <div className="space-y-2">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium flex items-center gap-1.5"><Languages className="h-4 w-4" /> Idioma</p>
+              <p className="text-xs text-muted-foreground">Selecciona el idioma de la interfaz</p>
+            </div>
+            <div className="flex gap-2">
+              {[
+                { id: "es" as const, flag: "🇲🇽", label: "Español" },
+                { id: "en" as const, flag: "🇺🇸", label: "English" },
+              ].map(opt => (
+                <button key={opt.id} onClick={() => { setLang(opt.id); toast.success(`Language set to ${opt.label}`); }}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors
+                    ${lang === opt.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted/50"}`}>
+                  <span className="text-lg">{opt.flag}</span> {opt.label}
+                  {lang === opt.id && <Check className="h-3.5 w-3.5 ml-0.5" />}
+                </button>
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+
+          <Separator />
+
+          {/* Color palette */}
+          <div className="space-y-2">
+            <div className="space-y-0.5">
+              <p className="text-sm font-medium">Paleta de colores</p>
+              <p className="text-xs text-muted-foreground">Define el esquema de colores del sistema</p>
+            </div>
+            <div className="flex gap-3">
+              {PALETTES.map(p => (
+                <button key={p.id} onClick={() => handlePaletteChange(p.id)}
+                  className={`relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-sm font-medium w-40
+                    ${palette === p.id ? "border-primary shadow-md" : "border-border hover:border-muted-foreground/40"}`}>
+                  <div className={`h-8 w-8 rounded-full ${p.bg} flex items-center justify-center shrink-0`}>
+                    <div className={`h-2.5 w-2.5 rounded-full ${p.dot1}`} />
+                  </div>
+                  <span>{p.label}</span>
+                  {palette === p.id && <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center"><Check className="h-3 w-3 text-white" /></div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── App Info ──────────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 font-heading uppercase text-base tracking-wide">
+            <Info className="h-4 w-4 text-primary" /> Acerca de SIGAF
+          </CardTitle>
+          <CardDescription>Información del sistema y guía rápida de funcionalidades</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between bg-muted rounded-lg px-4 py-3">
+            <div>
+              <p className="font-semibold text-sm">Sistema Integral de Gestión de Activo Fijo</p>
+              <p className="text-xs text-muted-foreground mt-0.5">SIGAF v2.0.0 — Next.js 15 + FastAPI + PostgreSQL</p>
+            </div>
+            <div className="flex gap-1.5">
+              <Laptop className="h-4 w-4 text-muted-foreground" />
+              <Smartphone className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ChevronRight className="h-3.5 w-3.5" /> Funcionalidades
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {FEATURES.map(({ icon: Icon, label }) => (
+                <div key={label} className="flex items-start gap-2.5 bg-muted/50 rounded-lg p-2.5">
+                  <Icon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <span className="text-xs text-muted-foreground leading-snug">{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ChevronRight className="h-3.5 w-3.5" /> Tipos de Movimiento
+            </p>
+            <div className="space-y-2">
+              {MOVEMENT_TYPES.map(({ key, color, desc }) => (
+                <div key={key} className="flex items-center gap-3 p-2.5 rounded-lg border bg-muted/30">
+                  <Badge className={`text-xs font-bold w-16 justify-center ${color}`}>{key}</Badge>
+                  <span className="text-xs text-muted-foreground">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ChevronRight className="h-3.5 w-3.5" /> Perfiles de Usuario
+            </p>
+            <div className="space-y-2">
+              {PROFILES.map(({ name, desc }) => (
+                <div key={name} className="flex items-start gap-3 p-2.5 rounded-lg border bg-muted/30">
+                  <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div><p className="text-xs font-semibold">{name}</p><p className="text-xs text-muted-foreground mt-0.5">{desc}</p></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <ChevronRight className="h-3.5 w-3.5" /> Documentos Exportables
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {[
+                "MAF — Clasificaciones de Activo Fijo",
+                "Movimientos ALTAS/BAJAS",
+                "Movimientos TRANSFERENCIAS",
+                "Resumen de Auditorías",
+              ].map(doc => (
+                <div key={doc} className="flex items-center gap-2 bg-muted/50 p-2.5 rounded-lg">
+                  <FileText className="h-4 w-4 text-green-500 shrink-0" />
+                  <span className="text-xs text-muted-foreground">{doc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
