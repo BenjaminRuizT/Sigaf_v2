@@ -1,188 +1,80 @@
-# SIGAF v2.0 — Sistema Integral de Gestión de Activo Fijo
+# SIGAF v2 — Deployment Patch
 
-Modernized architecture: **Next.js 15 + FastAPI + PostgreSQL**
-
----
-
-## Architecture
+## Files in this package
 
 ```
-┌─────────────────────────┐
-│   Next.js 15 (App Router)│  :3000
-│  Tailwind + Radix UI     │
-│  JWT Auth (localStorage) │
-│  Offline PWA / SW        │
-└──────────┬──────────────┘
-           │ REST (axios + interceptors)
-┌──────────▼──────────────┐
-│   FastAPI (modular)      │  :8000
-│  SQLAlchemy async        │
-│  Alembic migrations      │
-│  bcrypt + JWT (15m/7d)   │
-│  RBAC + rate limiting    │
-└──────────┬──────────────┘
-           │ asyncpg
-┌──────────▼──────────────┐
-│       PostgreSQL 16      │  :5432
-└─────────────────────────┘
+backend/app/
+  main.py                     ← FIX 1: registers download_routes (PDF endpoints were broken)
+  api/
+    reports_routes.py         ← FIX 2: adds plaza_audits, fixes movement_summary
+
+frontend/app/(protected)/
+  audit/[id]/page.tsx         ← FULL REBUILD: camera photo, transfer dialog, unknown surplus,
+                                  store inventory tab, completed summary tabs, disposal
+  settings/page.tsx           ← FULL REBUILD: theme toggle, language, color palette, profile,
+                                  show/hide password, app info section
+  admin/page.tsx              ← FULL REBUILD: user CRUD dialogs, equipment edit, reset-data
+                                  with drag-and-drop upload + template downloads
+  reports/page.tsx            ← PATCH: adds plaza_audits table
 ```
 
----
-
-## Running Locally
-
-### Prerequisites
-- Docker & Docker Compose
-- Node 22+  *(for frontend dev)*
-- Python 3.12+  *(for backend dev)*
-
-### 1. Clone / extract project
+## Deploy steps
 
 ```bash
-cp MAF.xlsx    sigaf_v2/data/
-cp USUARIOS.xlsx sigaf_v2/data/
+# 1. Copy files into your sigaf_v2 repo
+cp backend/app/main.py                   <your-repo>/backend/app/main.py
+cp backend/app/api/reports_routes.py     <your-repo>/backend/app/api/reports_routes.py
+cp "frontend/app/(protected)/audit/[id]/page.tsx"   <your-repo>/frontend/app/(protected)/audit/[id]/page.tsx
+cp "frontend/app/(protected)/settings/page.tsx"     <your-repo>/frontend/app/(protected)/settings/page.tsx
+cp "frontend/app/(protected)/admin/page.tsx"         <your-repo>/frontend/app/(protected)/admin/page.tsx
+cp "frontend/app/(protected)/reports/page.tsx"       <your-repo>/frontend/app/(protected)/reports/page.tsx
+
+# 2. Commit and push
+cd <your-repo>
+git add -A
+git commit -m "fix: PDF endpoints, plaza_audits; rebuild audit/settings/admin pages"
+git push origin main
 ```
 
-### 2. Start with Docker Compose
+Railway will auto-deploy on push.
 
-```bash
-cd sigaf_v2
-cp .env.example .env        # Edit JWT_SECRET
-docker compose up --build
-```
+## Fixes explained
 
-- Frontend → http://localhost:3000
-- Backend  → http://localhost:8000
-- API Docs → http://localhost:8000/api/docs
+### Fix 1 — PDF "Not authenticated" error
+`download_routes` router was imported but never registered in `main.py`.
+The route `/api/download/manual` simply didn't exist → FastAPI returned 404.
+**Resolution**: Added `app.include_router(download_router, prefix=PREFIX)` to `main.py`.
 
-### 3. Local dev (without Docker)
+### Fix 2 — Reports loading error (was transient race condition)
+`reports_routes.py` already had the sequential query fix (no asyncio.gather).
+This patch also adds:
+- `plaza_audits` field in `/reports/summary` response
+- `not_found_value` column assumed on `Audit` model (add if missing)
 
-**Backend**
-```bash
-cd backend
-python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env        # Set DATABASE_URL to local postgres
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
-```
+## New feature checklist
 
-**Frontend**
-```bash
-cd frontend
-npm install
-cp .env.local.example .env.local
-npm run dev
-```
+### Audit page
+- [x] Camera photo capture (AB + Transferencias formats)
+- [x] Store inventory tab with scan status indicators
+- [x] Unknown surplus registration dialog (ALTA flow)
+- [x] Transfer dialog for surplus from other stores
+- [x] Disposal (BAJA) dialog from completed audit
+- [x] Completed audit summary tabs: Summary / Not Found / Surplus
+- [x] Offline queue with per-item removal
+- [x] Real-time not-found counter during active audit
 
----
+### Settings page
+- [x] Theme toggle (light/dark)
+- [x] Language selector (ES/EN)
+- [x] Color palette selector (Professional / OXXO)
+- [x] Profile update with show/hide password
+- [x] App info section: features, movement types, user profiles, export docs
 
-## Deploy to Railway
+### Admin page
+- [x] Users: sortable table, create/edit/delete dialogs
+- [x] Equipment: search + plaza filter + pagination + edit dialog
+- [x] Reset data: drag-and-drop upload, structure info, template downloads, RESET confirmation
+- [x] Super Admin guard for destructive actions
 
-### Option A — Monorepo (recommended)
-
-1. Push repo to GitHub.
-2. In Railway → **New Project → Deploy from GitHub Repo**
-3. Add three services: `postgres`, `backend`, `frontend`
-
-**Postgres service**
-- Use Railway's PostgreSQL plugin
-- Copy `DATABASE_URL` (it starts with `postgresql://`, change to `postgresql+asyncpg://`)
-
-**Backend service**
-```
-Root directory: backend
-Build command:  pip install -r requirements.txt
-Start command:  uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
-Environment variables:
-```
-DATABASE_URL=postgresql+asyncpg://...  (from Railway Postgres)
-JWT_SECRET=<long random string>
-CORS_ORIGINS_STR=https://<your-frontend>.up.railway.app
-DATA_DIR=/app/data
-```
-Add `/data/MAF.xlsx` and `/data/USUARIOS.xlsx` via Railway volume or by baking into the image.
-
-**Frontend service**
-```
-Root directory: frontend
-Build command:  npm install && npm run build
-Start command:  npm start
-```
-Environment variables:
-```
-NEXT_PUBLIC_API_URL=https://<your-backend>.up.railway.app
-```
-
-### Option B — Docker (Railway)
-
-Enable `Dockerfile` in each service instead.
-
----
-
-## Roles & Permissions
-
-| Role                 | Dashboard | Audit | Logs | Reports | Admin |
-|----------------------|-----------|-------|------|---------|-------|
-| Socio Tecnologico    | ✅        | ✅    | ✅   | ❌      | ❌    |
-| Administrador        | ✅        | ✅    | ✅   | ✅      | ❌    |
-| Super Administrador  | ✅        | ✅    | ✅   | ✅      | ✅    |
-
----
-
-## Running Tests
-
-**Backend**
-```bash
-cd backend
-pip install pytest pytest-asyncio httpx
-pytest app/tests/ -v
-```
-
-**Frontend (Playwright)**
-```bash
-cd frontend
-npm install
-npx playwright install
-npm test
-```
-
----
-
-## Migrations (Alembic)
-
-```bash
-cd backend
-# Auto-generate after model changes
-alembic revision --autogenerate -m "describe change"
-alembic upgrade head
-```
-
----
-
-## Data Format
-
-### MAF.xlsx columns (exact order)
-`Cr Plaza | Plaza | Cr Tienda | Tienda | Codigo Barras | No Activo | Mes Adquisicion | Año Adquisicion | Factura | Costo | Depresiacion | Vida util | Remanente | Descripción | Marca | Modelo | Serie`
-
-### USUARIOS.xlsx columns
-`Perfil | Nombre | Email | Contraseña`
-
-Valid perfiles: `Super Administrador`, `Administrador`, `Socio Tecnologico`
-
----
-
-## Key Changes from v1
-
-| v1 (old)                        | v2 (new)                             |
-|---------------------------------|--------------------------------------|
-| Create React App (deprecated)   | Next.js 15 App Router                |
-| MongoDB / Motor                 | PostgreSQL 16 + SQLAlchemy async     |
-| Monolithic server.py            | Modular FastAPI (routes/services)    |
-| JWT 24h, no refresh             | Access 15min + Refresh 7d            |
-| No RBAC factory                 | `require_role()` dependency          |
-| No rate limiting                | slowapi on `/auth/login`             |
-| Axios in CRA context            | Centralized `lib/api.ts` interceptors|
-| No type safety                  | TypeScript throughout                |
-| No tests                        | pytest + Playwright                  |
+### Reports page
+- [x] plaza_audits table: Resultados de Auditorías por Plaza
