@@ -20,6 +20,7 @@ from app.api.admin_routes import router as admin_router
 from app.api.store_routes import router as store_router
 from app.api.movement_routes import router as movement_router
 from app.api.log_routes import router as log_router
+from app.api.download_routes import router as download_router   # ← FIX: was missing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s — %(name)s — %(levelname)s — %(message)s")
 logger = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ app.include_router(admin_router,     prefix=PREFIX)
 app.include_router(store_router,     prefix=PREFIX)
 app.include_router(movement_router,  prefix=PREFIX)
 app.include_router(log_router,       prefix=PREFIX)
+app.include_router(download_router,  prefix=PREFIX)             # ← FIX: registered
 
 @app.get("/api/health")
 async def health():
