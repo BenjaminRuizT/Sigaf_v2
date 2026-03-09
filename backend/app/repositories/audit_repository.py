@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, delete
 from typing import Optional
-from app.models.audit_model import Audit, AuditScan, Movement
+from app.models.audit_model import Audit, AuditScan
+from app.models.movement_model import Movement
 from app.models.equipment_model import Store
 
 
