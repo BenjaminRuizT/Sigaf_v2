@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -27,7 +27,7 @@ async def get_user_from_token_param(token: str, db: AsyncSession) -> dict:
 
 async def resolve_user(
     authorization: Optional[str] = Header(None),
-    token: Optional[str] = None,
+    token: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     if authorization and authorization.startswith("Bearer "):
