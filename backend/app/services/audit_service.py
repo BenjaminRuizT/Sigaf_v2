@@ -4,7 +4,8 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.audit_repository import AuditRepository
 from app.repositories.equipment_repository import EquipmentRepository
-from app.models.audit_model import Audit, AuditScan, Movement
+from app.models.audit_model import Audit, AuditScan
+from app.models.movement_model import Movement
 from app.models.equipment_model import Equipment, Store
 from sqlalchemy import select, and_
 
